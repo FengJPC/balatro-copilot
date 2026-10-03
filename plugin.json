@@ -1,12 +1,19 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "balatro-agent",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Compact Balatro Copilot middleware over the upstream Balatro Agent bridge.",
-  "author": { "name": "FengJ" },
+  "author": {
+    "name": "FengJ"
+  },
   "homepage": "https://github.com/FengJPC/balatro-copilot",
   "license": "MIT",
-  "keywords": ["balatro", "game", "codex", "mcp"],
+  "keywords": [
+    "balatro",
+    "game",
+    "codex",
+    "mcp"
+  ],
   "extensions": {
     "com.openai": {
       "interface": {
@@ -15,8 +22,12 @@
         "longDescription": "Three tools over Arcadi4's Balatro Agent v0.2.4: get_state, act and inspect. Preserves card IDs and effects, checks stale state and reads back actions without automatic retries. Requires Windows x64, Node.js, Steam Balatro, Lovely and Steamodded.",
         "developerName": "FengJ / upstream: 4rcadia",
         "category": "Games",
-        "capabilities": ["Interactive"],
-        "defaultPrompt": ["查看我的小丑牌局面，解释关键决策并继续游戏。"],
+        "capabilities": [
+          "Interactive"
+        ],
+        "defaultPrompt": [
+          "查看我的小丑牌局面，解释关键决策并继续游戏。"
+        ],
         "brandColor": "#E85151"
       }
     }

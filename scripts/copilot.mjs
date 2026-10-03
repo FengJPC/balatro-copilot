@@ -1,6 +1,8 @@
 // MIT: compact views and orchestration; no scoring engine or automatic action retry.
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { readFileSync } from 'node:fs';
+export const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8').replace(/^\uFEFF/, '')).version;
 
 export const ACTIONS = [
   'select_blind', 'skip_blind', 'play_hand', 'discard_hand', 'reroll_shop',
@@ -36,6 +38,11 @@ export function compact(text) {
 export const textOf = result => (result.contents ?? result.content ?? [])
   .filter(item => item.type === undefined || item.type === 'text').map(item => item.text ?? '').join('\n');
 function fault(code, message, extra = {}) { return Object.assign(new Error(message), { code, ...extra }); }
+export function handLevels(run) {
+  const block = run.match(/## Hand Levels\s*\n([\s\S]*?)(?=\n## |$)/)?.[1];
+  if (!block) throw fault('UNRECOGNIZED_STATE', 'Run resource has no Hand Levels; inspect run before scoring.');
+  return compact(block).split('\n').map(line => line.replace(/: (Lv\.\d+) — (\d+) chips × (\d+) mult/, ': $1 $2×$3')).join('; ');
+}
 function dataOf(result) {
   if (result.structuredContent !== undefined) return result.structuredContent;
   try { return JSON.parse(textOf(result).split('\n\n---')[0]); }
@@ -71,7 +78,7 @@ export class Copilot {
   constructor(upstream) { this.upstream = upstream; }
   async initialize() {
     const init = await this.upstream.rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {},
-      clientInfo: { name: 'balatro-copilot', version: '0.3.0' } });
+      clientInfo: { name: 'balatro-copilot', version: VERSION } });
     this.upstream.notify('notifications/initialized');
     this.catalog = (await this.upstream.rpc('tools/list')).tools;
     return init;
@@ -95,7 +102,8 @@ export class Copilot {
       do {
         turn = await this.read(`${base}turn`);
         const phase = turn.match(/\*\*Phase:\*\*\s*(\S+)/)?.[1];
-        if (!['NEW_ROUND', 'HAND_PLAYED', 'DRAW_TO_HAND', 'PLAY_TAROT', 'SMODS_REDEEM_VOUCHER'].includes(phase)) break;
+        const awaitingCashOut = phase === 'ROUND_EVAL' && !/- `cash_out`\s*(?:\n|$)/.test(turn);
+        if (!awaitingCashOut && !['NEW_ROUND', 'HAND_PLAYED', 'DRAW_TO_HAND', 'PLAY_TAROT', 'SMODS_REDEEM_VOUCHER'].includes(phase)) break;
         if (Date.now() >= deadline) throw fault('STATE_NOT_SETTLED', 'Game is still animating; read again before acting.');
         await delay(100);
       } while (true);
@@ -110,7 +118,8 @@ export class Copilot {
     let view = compact(turn);
     const section = phase === 'SHOP' ? 'shop' : phase === 'BLIND_SELECT' ? 'ante' : /BOOSTER|_PACK$/.test(phase) ? 'booster' : null;
     if (section) view += `\n\n${compact(await this.read(`${base}${section}`))}`;
-    return this.stamp({ instance_index, phase, view });
+    const hand_levels = handLevels(await this.read(`${base}run`));
+    return this.stamp({ instance_index, phase, view, hand_levels });
   }
   stamp(state) { return { ...state, state_id: createHash('sha256').update(JSON.stringify(state)).digest('hex').slice(0, 16) }; }
   async inspect(input) {

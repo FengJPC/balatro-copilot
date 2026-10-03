@@ -124,6 +124,7 @@ try {
       const state = JSON.parse(connected.content[0].text);
       assert.ok(state.state_id, 'Missing state identifier.');
       const phase = state.phase;
+      if (!['MENU', 'SPLASH'].includes(phase)) assert.ok(state.hand_levels?.length, 'Missing live hand-level facts.');
       const observation = { instance_index, phase, connection: 'verified', state };
       try {
         const turn = textOf(await rpc('resources/read', { uri: `balatro://instances/${instance_index}/turn` }));

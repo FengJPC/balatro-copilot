@@ -5,7 +5,7 @@ import { access } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { Upstream } from './upstream.mjs';
-import { Copilot, TOOLS } from './copilot.mjs';
+import { Copilot, TOOLS, VERSION } from './copilot.mjs';
 
 if (process.platform !== 'win32' || process.arch !== 'x64') {
   process.stderr.write('This package contains the Windows x64 Balatro Agent binary.\n');
@@ -40,7 +40,7 @@ if (process.argv.length > 2) {
       switch (request.method) {
         case 'initialize':
           result = { protocolVersion: init.protocolVersion, capabilities: { tools: {}, resources: {}, prompts: {} },
-            serverInfo: { name: 'balatro-copilot', version: '0.3.0' },
+            serverInfo: { name: 'balatro-copilot', version: VERSION },
             instructions: 'Use get_state, then act with its state_id. inspect provides details on demand.' };
           break;
         case 'ping': result = {}; break;

@@ -1,8 +1,10 @@
 {
   "name": "balatro-agent",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Compact Balatro Copilot middleware over upstream Balatro Agent v0.2.4.",
-  "author": { "name": "FengJ" },
+  "author": {
+    "name": "FengJ"
+  },
   "homepage": "https://github.com/FengJPC/balatro-copilot",
   "license": "MIT",
   "skills": "./skills/",
@@ -12,8 +14,12 @@
     "shortDescription": "Play Balatro with compact state and action feedback.",
     "developerName": "FengJ / upstream: 4rcadia",
     "category": "Games",
-    "capabilities": ["Interactive"],
-    "defaultPrompt": ["查看我的小丑牌局面，解释关键决策并继续游戏。"],
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": [
+      "查看我的小丑牌局面，解释关键决策并继续游戏。"
+    ],
     "brandColor": "#E85151"
   }
 }

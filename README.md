@@ -40,7 +40,7 @@ The installer pins Lovely v0.10.0 (`winmm.dll`), Steamodded 26.1002.0 and Balatr
 
 | Tool | Purpose |
 | --- | --- |
-| `get_state` | Full compact snapshot with `instance_index`, `phase`, `view`, `state_id`; includes the relevant shop, booster or blind choices. |
+| `get_state` | Full compact snapshot with `instance_index`, `phase`, `view`, `hand_levels`, `state_id`; includes current shop, booster or blind choices and actual hand levels/base chips/mult. |
 | `act` | One action against the supplied `state_id`; returns a receipt and a fresh decision surface. |
 | `inspect` | On-demand sections, individual action schemas and Wiki lookup. |
 
@@ -56,6 +56,8 @@ Example calls:
 Actions keep the upstream names without the `balatro_` prefix. Arguments remain upstream-compatible, except `play_hand` and `discard_hand` explicitly require 1-5 distinct `card_ids`; the middleware selects these cards and then executes once. This is a sequence, not a transaction or a guarantee against manual input or another MCP client. The upstream game bridge still validates IDs, resources and phase legality.
 
 Snapshots are complete compact views, not state diffs. The middleware serializes requests within one server, checks the current snapshot before acting and refuses a stale `state_id`. It reads current state after each action. This trades a little local IPC work for fewer model-visible round trips. It does not guarantee a final score before playing.
+
+Version 0.3.1 waits for the actual `cash_out` legal action during round evaluation, rather than treating the phase name alone as ready. A bounded wait that expires returns state unavailable; it never repeats the accepted action. Hand levels, base chips/mult and play counts are included in the fingerprint, so a level-only change also invalidates an old scoring snapshot.
 
 An uncertain action is never resent automatically. `action_may_have_executed: true` requires examining fresh state. A successful receipt with `state_unavailable` still means the action was accepted; read again before proceeding, do not repeat the action.
 
