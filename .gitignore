@@ -1,0 +1,7 @@
+bin/
+game-mod/
+provenance.json
+game-setup.json
+node_modules/
+*.log
+.DS_Store

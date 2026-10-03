@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/Arcadi4/balatro-agent",
+  "version": "0.2.4",
+  "source_commit": "54fb4e774f52ad8f4b67ab56cf6629f3e33bacbf",
+  "binary": {
+    "url": "https://github.com/Arcadi4/balatro-agent/releases/download/v0.2.4/balatro-mcp-win32-x64-v0.2.4.tar.gz",
+    "sha256": "615bcddd1e03e801971c81cd279323a48bbb98dc9989906632d9fc6a2cafac4d"
+  },
+  "mod": {
+    "url": "https://github.com/Arcadi4/balatro-agent/releases/download/v0.2.4/balatro-agent-v0.2.4.zip",
+    "sha256": "320210448707b4d4d12c9e6c17e0cd9fd24e4c52fbbb8020e3d92f4a726c42de"
+  }
+}
