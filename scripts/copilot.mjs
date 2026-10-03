@@ -114,8 +114,11 @@ export class Copilot {
         turn = await this.read(`${base}turn`, deadline);
         const phase = turn.match(/\*\*Phase:\*\*\s*(\S+)/)?.[1];
         if (turn !== stableTurn) { stableTurn = turn; stableSince = Date.now(); }
+        // A victory overlay can retain the finished blind indefinitely. Blind
+        // cleanup is not a readiness signal; neither is a legal action proof
+        // that an overlay is closed (the native bridge does not expose it).
         const awaitingCashOut = phase === 'ROUND_EVAL' && (!/- `cash_out`\s*(?:\n|$)/.test(turn)
-          || /\*\*Blind:\*\*/.test(turn) || Date.now() - stableSince < 600);
+          || Date.now() - stableSince < 600);
         if (!awaitingCashOut && !['NEW_ROUND', 'HAND_PLAYED', 'DRAW_TO_HAND', 'PLAY_TAROT', 'SMODS_REDEEM_VOUCHER'].includes(phase)) break;
         if (Date.now() >= deadline) throw fault('STATE_NOT_SETTLED', 'Game is still animating; read again before acting.');
         await delay(100);
@@ -183,6 +186,17 @@ export class Copilot {
     let receipt;
     const evidenceArgs = { ...args };
     try {
+      if (['reorder_hand', 'reorder_jokers'].includes(input.action)) {
+        const ids = args.order;
+        if (Object.keys(args).some(key => key !== 'order') || !Array.isArray(ids) || ids.length > 50
+          || ids.some(id => !(typeof id === 'string' && id.length > 0) && !Number.isSafeInteger(id))
+          || new Set(ids.map(String)).size !== ids.length) {
+          throw fault('INVALID_ARGUMENT', 'Reorder requires args.order: every current card ID exactly once, in left-to-right order; card_ids is not accepted.');
+        }
+      }
+      if (input.action === 'continue_game' && !['MENU', 'MAIN_MENU'].includes(current.phase)) {
+        throw fault('INVALID_ARGUMENT', 'continue_game loads a saved run from the main menu. It does not choose Endless on the victory dialog; use the game UI for that.');
+      }
       if (['play_hand', 'discard_hand'].includes(input.action)) {
         if (Object.keys(args).some(key => key !== 'card_ids')) throw fault('INVALID_ARGUMENT', 'play/discard only accept card_ids.');
         const ids = args.card_ids;
@@ -196,6 +210,11 @@ export class Copilot {
       sent = true;
       receipt = await this.call(`balatro_${input.action}`, { ...args, instance_index: index });
     } catch (error) {
+      // JSON-RPC Invalid params is rejected by the native tool layer before
+      // any gameplay handler. Local validation also sends no action.
+      if ((!sent && !selection && error.code === 'INVALID_ARGUMENT') || error.code === -32602) return { ok: false,
+        error_code: String(error.code === -32602 ? 'INVALID_ARGUMENT' : error.code ?? 'ACTION_FAILED'),
+        message: error.message, action_may_have_executed: false, ...(selection && { selection }), state: current };
       let state;
       try { state = await this.reconcile(index); } catch { /* Never resend an uncertain action. */ }
       if (sent && error.code === 'UPSTREAM_TIMEOUT' && state) {

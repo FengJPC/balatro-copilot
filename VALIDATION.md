@@ -1,6 +1,6 @@
 # Validation
 
-This repository adds middleware to the unchanged Balatro Agent v0.2.4 release. It does not establish reliable full-run play.
+This repository adds middleware to the unchanged Balatro Agent v0.2.4 release. One real run completed Ante 8; this does not establish reliability across seeds, decks or every recovery path.
 
 ## Before middleware
 
@@ -30,3 +30,13 @@ The returned ROUND_EVAL snapshot lacked `cash_out` on three winning hands until 
 0.3.2 keeps the upstream Mod/executable unchanged, adds per-call acknowledgement budgets and action-specific stable-state reconciliation, and distinguishes observed completion from native receipts. Round cash-out readiness includes blind cleanup and stable reward dollars. All 30 unit and transport tests passed, covering lost acknowledgements, unrelated changes, incomplete redraws, unchanged Tarot targets, mismatched blind/pack identity, explicit rejection and late-response correlation.
 
 Real-game fault injection: exactly one `cash_out` was sent. Its successful native acknowledgement was deliberately discarded. Stable state confirmed ROUND_EVAL -> SHOP, $28 -> $40, and the middleware returned `completion: "observed"` / `round_reward_received` in 2,447 ms with no resend. A real stdio read-only check also passed with three tools, 29 resources, verified original binary hash and correct live hand levels. This establishes real cash-out recovery, not live validation of every recovery predicate. Naturally recurring acknowledgement stalls and scoring timeouts still need further run testing; uncertain effects remain errors rather than guessed successes.
+
+## Completed run and 0.3.3 victory handling
+
+2026-10-04: that same Red Deck / White Stake run completed Ante 8 through 0.3.2. Amber Acorn was beaten in one hand with 330,960 chips against 100,000, and the actual victory dialog was visually observed. Two Pair reached Lv.12 (240 base chips, 13 base mult). Several ordinary action acknowledgement stalls were recovered during play without automatic resends. This is one completed run, not coverage of all decks or recovery predicates.
+
+Attempting to enter Endless exposed two issues: the snapshot waited indefinitely for a finished blind to disappear behind the victory dialog, and incorrectly passing `card_ids` to a reorder action produced an uncertain-action report despite native argument rejection. Version 0.3.3 keeps the legal-action and 600 ms stability checks but removes the blind-disappearance requirement; reorder arguments are checked before sending, and JSON-RPC Invalid params errors explicitly report that the action did not execute. It also prevents calling `continue_game` during a run; that action only loads a save from the main menu.
+
+All 35 unit and transport tests passed. New regressions cover a permanently retained final blind, stable repeated fingerprints on that screen, incorrect reorder fields/IDs/duplicates, canonical opaque-ID order forwarding, native parameter rejection and correct menu-only continuation. The skill frontmatter validator and Git whitespace check passed. A real packaged stdio read-only check passed with three tools, 29 resources and verified original binary hash, returning instance 0 in ROUND_EVAL, Ante 9, $18, Round Dollars 14 and Two Pair Lv.12. At the time of that live check the native turn no longer contained the old blind, so permanent-blind behavior was verified by the regression fixture, not that live read. No gameplay action was sent during this repair validation.
+
+The native bridge does not expose victory-dialog visibility or an Endless-button command. Its `Endless Mode: true` field is derived from Ante > 8 and cannot verify a UI choice. The updated skill directs continuation through the actual game UI and fresh state readback; automatic Endless selection through MCP remains unsupported. The game Mod and native executable are unchanged.

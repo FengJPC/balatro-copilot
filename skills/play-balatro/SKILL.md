@@ -22,6 +22,10 @@ Use `get_state`, `act` and `inspect` on `balatro_agent`. Upstream resources rema
 - `ok: true, completion: "observed"` means the native acknowledgement timed out but stable state showed the specific effect. The receipt has `source: "state_readback"` and an evidence name; it is not a native acknowledgement or a scoring receipt. Use the returned state and do not repeat the action. A changed fingerprint alone is never enough; unsupported or ambiguous effects remain uncertain.
 - `inspect(section: "wiki", query: "...")` searches; `title` reads an article. Base chips/mult are only a partial score preview before cards, jokers and blind effects.
 
+## Victory and Endless
+
+The native bridge exposes no victory-dialog visibility or Endless-button action. A readable `ROUND_EVAL` snapshot and legal `cash_out` can belong to the run behind that dialog; they do not prove the button is accessible. The run resource's `Endless Mode: true` is derived from Ante > 8, so it does not confirm that Endless was chosen. When the user asks to continue after winning, inspect the actual UI through an available computer-use capability and choose the visible Endless button, or let the user click it, then read fresh game state. Do not repeatedly send `cash_out` to close an overlay. `continue_game` only loads a saved run from the main menu.
+
 ## Collaboration
 
 Explain consequential choices, including the hand being played, the scoring assumptions, economy, joker ordering and Boss restrictions. Follow the user's requested scope and pause boundaries. Explicit continuous-play authorization permits ongoing blind, shop and pack decisions without routine confirmation. Inspect-only requests do not authorize starting, restarting or replacing a run. Do not unlock content or modify saves as part of play.

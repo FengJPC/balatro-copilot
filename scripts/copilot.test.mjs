@@ -144,7 +144,7 @@ test('A hand-level-only change invalidates the old scoring snapshot', async () =
   assert.equal(mutations.length, 0);
 });
 
-test('Cash-out readiness includes blind cleanup and stable reward dollars, not just the legal action', async () => {
+test('Cash-out readiness waits for stable reward dollars, not just the legal action', async () => {
   const { copilot, mutations } = setup();
   const originalRead = copilot.read.bind(copilot);
   let frames = 0;
@@ -159,4 +159,67 @@ test('Cash-out readiness includes blind cleanup and stable reward dollars, not j
   assert.match(result.view, /Round Dollars: 10/);
   assert.ok(frames > 5);
   assert.equal(mutations.length, 0);
+});
+
+test('A victory screen retaining the finished blind stays readable without gameplay', async () => {
+  const { copilot, mutations } = setup();
+  const originalRead = copilot.read.bind(copilot);
+  copilot.read = async (uri, deadline) => uri.endsWith('/turn')
+    ? turn('ROUND_EVAL').replace('**Ante:** 1', '**Ante:** 9')
+      .replace('`select_hand_cards`', '`cash_out`')
+      .replace('## Legal Actions', '**Blind:** Amber Acorn — 330960 / 100000 chips\n**Round Dollars:** 14\n\n## Legal Actions')
+    : originalRead(uri, deadline);
+  const state = await copilot.invoke('get_state');
+  assert.equal(state.phase, 'ROUND_EVAL');
+  assert.match(state.view, /Amber Acorn/);
+  assert.ok(state.state_id);
+  const again = await copilot.invoke('get_state');
+  assert.equal(again.state_id, state.state_id);
+  const rejected = await copilot.invoke('act', { action: 'continue_game', state_id: state.state_id });
+  assert.equal(rejected.action_may_have_executed, false);
+  assert.match(rejected.message, /Endless/);
+  assert.equal(mutations.length, 0);
+});
+
+test('Reorder preflight refuses incorrect fields, invalid IDs and duplicates without sending', async () => {
+  const { copilot, mutations } = setup();
+  const state = await copilot.invoke('get_state');
+  for (const action of ['reorder_hand', 'reorder_jokers']) {
+    for (const args of [{ card_ids: [1, 2] }, {}, { order: '1,2' }, { order: [1, '1'] },
+      { order: [''] }, { order: [1.5] }, { order: [Number.MAX_SAFE_INTEGER + 1] },
+      { order: Array.from({length: 51}, (_, i) => i) }, { order: [1], extra: true }]) {
+      const result = await copilot.invoke('act', { action, state_id: state.state_id, args });
+      assert.equal(result.error_code, 'INVALID_ARGUMENT');
+      assert.equal(result.action_may_have_executed, false);
+      assert.equal(result.state.state_id, state.state_id);
+    }
+  }
+  assert.equal(mutations.length, 0);
+});
+
+test('Reorder forwards canonical order unchanged once, including opaque string IDs', async () => {
+  const { copilot, mutations } = setup();
+  const state = await copilot.invoke('get_state');
+  const order = ['hidden-card-abc', 2];
+  const result = await copilot.invoke('act', { action: 'reorder_jokers', state_id: state.state_id, args: { order } });
+  assert.equal(result.ok, true);
+  assert.deepEqual(mutations, [{ name: 'balatro_reorder_jokers', arguments: { order, instance_index: 0 } }]);
+});
+
+test('Native Invalid params is reported as unsent rather than uncertain gameplay', async () => {
+  const { copilot, mutations } = setup();
+  const state = await copilot.invoke('get_state');
+  copilot.call = async () => { throw Object.assign(new Error('Input validation error'), { code: -32602 }); };
+  const result = await copilot.invoke('act', { action: 'buy_card', state_id: state.state_id, args: { incorrect: 1 } });
+  assert.equal(result.error_code, 'INVALID_ARGUMENT');
+  assert.equal(result.action_may_have_executed, false);
+  assert.equal(mutations.length, 0);
+});
+
+test('continue_game still loads a saved run from MENU', async () => {
+  const { copilot, mutations } = setup({ phase: 'MENU' });
+  const state = await copilot.invoke('get_state');
+  const result = await copilot.invoke('act', { action: 'continue_game', state_id: state.state_id });
+  assert.equal(result.ok, true);
+  assert.deepEqual(mutations.map(m => m.name), ['balatro_continue_game']);
 });
