@@ -19,6 +19,7 @@ Use `get_state`, `act` and `inspect` on `balatro_agent`. Upstream resources rema
 - Other action names drop upstream's `balatro_` prefix; arguments stay the same. Buy/sell use `card_id`; reorder uses `order`; hand-targeting consumables use `targets`; `buy_consumable` requires `use`. Booster consumables are used immediately, so pass targets to `select_booster_card`.
 - Prefer the returned `state` for the next decision instead of calling `get_state` again. `STALE_STATE` sends no gameplay action and returns a fresh snapshot: decide again from it.
 - An uncertain action is never retried automatically. `action_may_have_executed: true` requires checking the returned state or reading again. `ok: true` with `state_unavailable` means the action was accepted: read state before proceeding and do not resend it. If the outcome stays unclear, stop mutations and explain it.
+- `ok: true, completion: "observed"` means the native acknowledgement timed out but stable state showed the specific effect. The receipt has `source: "state_readback"` and an evidence name; it is not a native acknowledgement or a scoring receipt. Use the returned state and do not repeat the action. A changed fingerprint alone is never enough; unsupported or ambiguous effects remain uncertain.
 - `inspect(section: "wiki", query: "...")` searches; `title` reads an article. Base chips/mult are only a partial score preview before cards, jokers and blind effects.
 
 ## Collaboration

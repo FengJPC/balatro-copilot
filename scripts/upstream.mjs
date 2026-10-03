@@ -34,14 +34,14 @@ export class Upstream {
       } catch (error) { fail(error); this.child.kill(); }
     });
   }
-  rpc(method, params = {}) {
+  rpc(method, params = {}, { timeoutMs = this.timeout } = {}) {
     if (this.closed) return Promise.reject(new Error('Upstream is closed.'));
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(Object.assign(new Error(`Upstream request timed out: ${method}`), { code: 'UPSTREAM_TIMEOUT' }));
-      }, this.timeout);
+      }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       this.child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
     });

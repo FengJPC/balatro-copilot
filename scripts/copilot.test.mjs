@@ -143,3 +143,20 @@ test('A hand-level-only change invalidates the old scoring snapshot', async () =
   assert.equal(result.error_code, 'STALE_STATE');
   assert.equal(mutations.length, 0);
 });
+
+test('Cash-out readiness includes blind cleanup and stable reward dollars, not just the legal action', async () => {
+  const { copilot, mutations } = setup();
+  const originalRead = copilot.read.bind(copilot);
+  let frames = 0;
+  copilot.read = async (uri, deadline) => {
+    if (!uri.endsWith('/turn')) return originalRead(uri, deadline);
+    frames++;
+    return turn('ROUND_EVAL').replace('`select_hand_cards`', '`cash_out`')
+      .replace('## Legal Actions', `${frames < 3 ? '**Blind:** Big Blind\n' : ''}**Round Dollars:** ${frames < 5 ? 13 : 10}\n\n## Legal Actions`);
+  };
+  const result = await copilot.invoke('get_state');
+  assert.doesNotMatch(result.view, /Blind: Big Blind/);
+  assert.match(result.view, /Round Dollars: 10/);
+  assert.ok(frames > 5);
+  assert.equal(mutations.length, 0);
+});

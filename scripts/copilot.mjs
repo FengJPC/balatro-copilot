@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { readFileSync } from 'node:fs';
+import { observedCompletion } from './completion.mjs';
 export const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8').replace(/^\uFEFF/, '')).version;
 
 export const ACTIONS = [
@@ -83,8 +84,17 @@ export class Copilot {
     this.catalog = (await this.upstream.rpc('tools/list')).tools;
     return init;
   }
-  async read(uri) { return textOf(await this.upstream.rpc('resources/read', { uri })); }
-  async call(name, args) { return successful(await this.upstream.rpc('tools/call', { name, arguments: args })); }
+  async read(uri, deadline = Date.now() + 5000) {
+    const timeoutMs = deadline - Date.now();
+    if (timeoutMs <= 0) throw fault('STATE_NOT_SETTLED', 'State read deadline expired; read again before acting.');
+    return textOf(await this.upstream.rpc('resources/read', { uri }, { timeoutMs }));
+  }
+  async call(name, args) {
+    // Scoring has a separate, longer animation. All other mutations have a
+    // short acknowledgement budget, followed by evidence-based readback.
+    const timeoutMs = name === 'balatro_play_hand' ? 50_000 : 8000;
+    return successful(await this.upstream.rpc('tools/call', { name, arguments: args }, { timeoutMs }));
+  }
   async resolve(index) {
     if (index !== undefined && (!Number.isInteger(index) || index < 0)) throw fault('INVALID_ARGUMENT', 'Invalid instance_index.');
     const listing = await this.read('balatro://instances');
@@ -98,11 +108,14 @@ export class Copilot {
     const base = `balatro://instances/${instance_index}/`;
     let turn;
     const deadline = Date.now() + 5000;
+    let stableTurn, stableSince;
     try {
       do {
-        turn = await this.read(`${base}turn`);
+        turn = await this.read(`${base}turn`, deadline);
         const phase = turn.match(/\*\*Phase:\*\*\s*(\S+)/)?.[1];
-        const awaitingCashOut = phase === 'ROUND_EVAL' && !/- `cash_out`\s*(?:\n|$)/.test(turn);
+        if (turn !== stableTurn) { stableTurn = turn; stableSince = Date.now(); }
+        const awaitingCashOut = phase === 'ROUND_EVAL' && (!/- `cash_out`\s*(?:\n|$)/.test(turn)
+          || /\*\*Blind:\*\*/.test(turn) || Date.now() - stableSince < 600);
         if (!awaitingCashOut && !['NEW_ROUND', 'HAND_PLAYED', 'DRAW_TO_HAND', 'PLAY_TAROT', 'SMODS_REDEEM_VOUCHER'].includes(phase)) break;
         if (Date.now() >= deadline) throw fault('STATE_NOT_SETTLED', 'Game is still animating; read again before acting.');
         await delay(100);
@@ -117,11 +130,22 @@ export class Copilot {
     if (!phase) throw fault('UNRECOGNIZED_STATE', 'Upstream turn format changed; use inspect turn.');
     let view = compact(turn);
     const section = phase === 'SHOP' ? 'shop' : phase === 'BLIND_SELECT' ? 'ante' : /BOOSTER|_PACK$/.test(phase) ? 'booster' : null;
-    if (section) view += `\n\n${compact(await this.read(`${base}${section}`))}`;
-    const hand_levels = handLevels(await this.read(`${base}run`));
+    if (section) view += `\n\n${compact(await this.read(`${base}${section}`, deadline))}`;
+    const hand_levels = handLevels(await this.read(`${base}run`, deadline));
     return this.stamp({ instance_index, phase, view, hand_levels });
   }
   stamp(state) { return { ...state, state_id: createHash('sha256').update(JSON.stringify(state)).digest('hex').slice(0, 16) }; }
+  async reconcile(index, deadline = Date.now() + 3500) {
+    let previous, stableSince;
+    do {
+      const state = await this.snapshot(index);
+      if (state.state_id !== previous?.state_id) stableSince = Date.now();
+      else if (Date.now() - stableSince >= 600) return state;
+      previous = state;
+      await delay(150);
+    } while (Date.now() < deadline);
+    throw fault('STATE_NOT_SETTLED', 'Post-action state kept changing; completion remains uncertain.');
+  }
   async inspect(input) {
     if (input.section === 'tools') return this.catalog.filter(tool => ACTIONS.includes(tool.name.replace(/^balatro_/, '')))
       .filter(tool => !input.action || tool.name === `balatro_${input.action}`)
@@ -157,6 +181,7 @@ export class Copilot {
     let selection;
     let sent = false;
     let receipt;
+    const evidenceArgs = { ...args };
     try {
       if (['play_hand', 'discard_hand'].includes(input.action)) {
         if (Object.keys(args).some(key => key !== 'card_ids')) throw fault('INVALID_ARGUMENT', 'play/discard only accept card_ids.');
@@ -172,7 +197,12 @@ export class Copilot {
       receipt = await this.call(`balatro_${input.action}`, { ...args, instance_index: index });
     } catch (error) {
       let state;
-      try { state = await this.snapshot(index); } catch { /* Never resend an uncertain action. */ }
+      try { state = await this.reconcile(index); } catch { /* Never resend an uncertain action. */ }
+      if (sent && error.code === 'UPSTREAM_TIMEOUT' && state) {
+        const observed = observedCompletion(input.action, evidenceArgs, current, state);
+        if (observed) return { ok: true, action: input.action, completion: 'observed', receipt: observed, state,
+          message: 'Native acknowledgement unavailable; stable state shows the effect. No retry was sent.' };
+      }
       return { ok: false, error_code: String(error.code ?? 'ACTION_FAILED'), message: error.message,
         action_may_have_executed: sent, ...(selection && { selection }), ...(state && { state }) };
     }

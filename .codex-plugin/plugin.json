@@ -1,6 +1,6 @@
 {
   "name": "balatro-agent",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Compact Balatro Copilot middleware over upstream Balatro Agent v0.2.4.",
   "author": {
     "name": "FengJ"

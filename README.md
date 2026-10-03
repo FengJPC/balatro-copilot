@@ -16,7 +16,7 @@ Clone and prepare the runtime before installing the plugin:
 git clone https://github.com/FengJPC/balatro-copilot.git
 cd balatro-copilot
 powershell -ExecutionPolicy Bypass -File scripts\bootstrap.ps1
-node --test scripts\copilot.test.mjs
+npm test
 node scripts\check.mjs
 codex plugin marketplace add . --json
 codex plugin add balatro-agent@balatro-local --json
@@ -61,12 +61,16 @@ Version 0.3.1 waits for the actual `cash_out` legal action during round evaluati
 
 An uncertain action is never resent automatically. `action_may_have_executed: true` requires examining fresh state. A successful receipt with `state_unavailable` still means the action was accepted; read again before proceeding, do not repeat the action.
 
+Version 0.3.2 bounds ordinary native action acknowledgements to 8 seconds, scoring acknowledgements to 50 seconds, and each complete snapshot to 5 seconds. Some upstream v0.2.4 event-queue completion checks can keep waiting after the visible effect has finished. On acknowledgement timeout, the middleware reads stable state and checks action-specific evidence: the intended blind started, the purchased card entered its slot, a pack opened, a Tarot changed its targets, a discard consumed one discard and dealt replacement cards, or the round reward reached the shop. This returns `ok: true, completion: "observed"` with a `source: "state_readback"` receipt, explicitly distinct from a native acknowledgement. It does not resend the action or invent a scoring receipt. A changed fingerprint or money movement alone is insufficient. Unsupported or ambiguous outcomes remain uncertain. Manual input or another client can still interfere with observed evidence.
+
+Round evaluation also waits for blind cleanup and at least 600 ms of stable reward information, reducing stale cash-outs during the reward animation. The game Mod and executable remain unchanged; this update only requires restarting Codex.
+
 Multiple games require an explicit, current **0-based** `instance_index`; `inspect(section: "instances")` lists them. Upstream resources and handbook prompts remain available. Wiki search uses `inspect(section: "wiki", query: "...")`; an article uses `title`.
 
 ## Validation and measurement
 
 ```powershell
-node --test scripts\copilot.test.mjs
+npm test
 node scripts\check.mjs --live
 node scripts\benchmark.mjs --live
 ```
