@@ -32,6 +32,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $smodsSource 'lovely'))) { throw 'In
 New-Item -ItemType Directory -Path $modsRoot -Force | Out-Null
 Copy-Item -LiteralPath $smodsSource -Destination (Join-Path $modsRoot 'smods') -Recurse
 Copy-Item -LiteralPath (Join-Path $packageRoot 'game-mod\balatro-agent') -Destination (Join-Path $modsRoot 'balatro-agent') -Recurse
+& (Join-Path $PSScriptRoot 'install-extension.ps1') -ModDirectory (Join-Path $modsRoot 'balatro-agent')
 Copy-Item -LiteralPath $lovelyDlls[0].FullName -Destination (Join-Path $gameRoot 'winmm.dll')
 $record = [ordered]@{
     lovely_version = '0.10.0'

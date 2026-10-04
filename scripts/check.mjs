@@ -69,7 +69,7 @@ function rpc(method, params = {}) {
     const timer = setTimeout(() => {
       pending.delete(id);
       reject(new Error(`Read-only probe timed out: ${method}. ${stderr}`));
-    }, 15_000);
+    }, 30_000);
     pending.set(id, { resolve, reject, timer });
     send({ jsonrpc: '2.0', id, method, params });
   });
@@ -94,7 +94,7 @@ try {
   }
   const actionSchemas = await rpc('tools/call', { name: 'inspect', arguments: { section: 'tools' } });
   assert.ok(!actionSchemas.isError, JSON.stringify(actionSchemas));
-  assert.equal(JSON.parse(actionSchemas.content[0].text).length, 23);
+  assert.equal(JSON.parse(actionSchemas.content[0].text).length, 24);
   const resources = await rpc('resources/list');
   assert.ok(resources.resources.some(resource => resource.uri === 'balatro://instances'));
   const templates = await rpc('resources/templates/list');

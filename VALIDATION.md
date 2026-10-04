@@ -1,6 +1,6 @@
 # Validation
 
-This repository adds middleware to the unchanged Balatro Agent v0.2.4 release. One real run completed Ante 8; this does not establish reliability across seeds, decks or every recovery path.
+This repository adds middleware to Balatro Agent v0.2.4 and, starting in 0.4.0, an optional small Lua extension. Its native executable remains unchanged. One real run completed Ante 8; this does not establish reliability across seeds, decks or every recovery path. Sections below are version-specific historical evidence.
 
 ## Before middleware
 
@@ -40,3 +40,17 @@ Attempting to enter Endless exposed two issues: the snapshot waited indefinitely
 All 35 unit and transport tests passed. New regressions cover a permanently retained final blind, stable repeated fingerprints on that screen, incorrect reorder fields/IDs/duplicates, canonical opaque-ID order forwarding, native parameter rejection and correct menu-only continuation. The skill frontmatter validator and Git whitespace check passed. A real packaged stdio read-only check passed with three tools, 29 resources and verified original binary hash, returning instance 0 in ROUND_EVAL, Ante 9, $18, Round Dollars 14 and Two Pair Lv.12. At the time of that live check the native turn no longer contained the old blind, so permanent-blind behavior was verified by the regression fixture, not that live read. No gameplay action was sent during this repair validation.
 
 The native bridge does not expose victory-dialog visibility or an Endless-button command. Its `Endless Mode: true` field is derived from Ante > 8 and cannot verify a UI choice. The updated skill directs continuation through the actual game UI and fresh state readback; automatic Endless selection through MCP remains unsupported. The game Mod and native executable are unchanged.
+
+## 0.4.0 game UI extension and explicit state references
+
+2026-10-04: fixes for the limitations found in that run. The optional Lua extension identifies the real victory dialog, reads the actual reward cash-out button, chooses Endless through the existing UI callback and sells an owned Joker inside an open pack through the game's existing sale validation. The installer adds one loader hook and the extension file to v0.2.4, preserving the checksum-verified original. The upstream executable and downloaded base artifact remain unchanged. No Balatro game source or assets are redistributed.
+
+Successful action replies explicitly reference unchanged Joker and hand-level facts with `state.delta.base_state_id` / `unchanged`. Full internal state still determines stale-state checks; changed effects, IDs, order and levels are sent in full. Errors and unknown bases use full state, and `get_state` resynchronizes. The feature reduces repeated state text; it is not a measured reduction in billed tokens or entire conversational context.
+
+- All **51 Node tests** passed, including delayed reward buttons despite a legal cash-out action, retained final blinds, overlay blocking, custom action routing, ambiguous game identity, lost/rejected extension replies, correlated fragmented protocol replies and chains of state references with full resynchronization.
+- All **9 LuaJIT tests** passed using the actual extension in a mocked game environment: visible victory versus options, exact cash-out readiness, callback closure, full-slot pack sales, eternal/hidden/missing targets, phase restrictions and settlement uncertainty. `lupa` is a developer-only dependency; the shipped plugin remains dependency-free.
+- Installer checks verified the original backup checksum, identical repeated installation and refusal to overwrite an unknown main-file edit. Skill frontmatter and Git whitespace validation passed.
+- The real stdio package check passed with exactly **3 tools**, **24 action schemas**, **20 static resources**, handbook/resource compatibility and the original executable checksum. Tool-catalog JSON is 47,020 -> 2,594 characters (**94.5%** reduction); this is character count, not billed token usage.
+- Local installation verified `balatro-agent@balatro-local` 0.4.0 is installed and enabled, with all 31 tracked source files matching the cache. The installed game extension matches its source hash, the original main-file backup retains its upstream checksum, and the patched main file passes LuaJIT syntax validation with exactly one loader hook. The installed cache's real stdio package check also passed.
+
+The attempted read-only live check found no running game instance, including when using the host registry directory. Therefore new extension actions, the reward-button gate and state-reference compression have **not yet been validated during live gameplay**. Balatro and Codex must be restarted to load the installed extension and plugin. The bridge refuses extension actions when no matching extension or unambiguous game is available; multiple-game binding remains unsupported for these new actions. Ordinary upstream actions remain usable with explicit instance selection. Animation/acknowledgement stalls still have bounded waits and never trigger automatic retries.

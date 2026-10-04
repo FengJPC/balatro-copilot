@@ -1,6 +1,6 @@
 # Balatro Copilot
 
-A small MCP middleware and Codex plugin for playing the real Steam version of Balatro. Built on the unchanged [Arcadi4/balatro-agent](https://github.com/Arcadi4/balatro-agent) v0.2.4 bridge. Inspired by [Spire Copilot](https://github.com/FengJPC/spire-copilot).
+A small MCP middleware and Codex plugin for playing the real Steam version of Balatro. Built on [Arcadi4/balatro-agent](https://github.com/Arcadi4/balatro-agent) v0.2.4, with an unchanged native executable and a small optional Lua extension. Inspired by [Spire Copilot](https://github.com/FengJPC/spire-copilot).
 
 三个入口：`get_state` 读取紧凑局面，`act` 执行动作并回读，`inspect` 按需读取详细信息。保留卡牌 ID、左右顺序、修饰效果、Boss 限制和合法操作；减少重复工具说明和结果包装。不包含策略引擎或自动动作重试。
 
@@ -36,12 +36,20 @@ powershell -ExecutionPolicy Bypass -File scripts\install-game.ps1 -GameDirectory
 
 The installer pins Lovely v0.10.0 (`winmm.dll`), Steamodded 26.1002.0 and Balatro Agent v0.2.4. It refuses to overwrite existing dependencies. Game setup receipts and user saves are not included in this repository.
 
+### Updating an existing game Mod to 0.4.0
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-extension.ps1
+```
+
+This adds `copilot-extension.lua` and one loader hook to the installed Balatro Agent Mod. The installer verifies the original v0.2.4 `main.lua` checksum, preserves it as `main.lua.copilot-original`, refuses unknown modifications and can be run again. `-CheckOnly` validates without writing; `-ModDirectory` selects a different Mod installation. New `install-game.ps1` installations include the extension automatically. Restart **Balatro and Codex** to load both parts. The installer does not close the game or edit saves. Keep the original backup and the upstream license when redistributing a patched Mod.
+
 ## MCP interface
 
 | Tool | Purpose |
 | --- | --- |
 | `get_state` | Full compact snapshot with `instance_index`, `phase`, `view`, `hand_levels`, `state_id`; includes current shop, booster or blind choices and actual hand levels/base chips/mult. |
-| `act` | One action against the supplied `state_id`; returns a receipt and a fresh decision surface. |
+| `act` | One action against the supplied `state_id`; returns a receipt and fresh state, with explicit references for unchanged sections. |
 | `inspect` | On-demand sections, individual action schemas and Wiki lookup. |
 
 Example calls:
@@ -55,7 +63,9 @@ Example calls:
 
 Actions keep the upstream names without the `balatro_` prefix. Arguments remain upstream-compatible, except `play_hand` and `discard_hand` explicitly require 1-5 distinct `card_ids`; the middleware selects these cards and then executes once. This is a sequence, not a transaction or a guarantee against manual input or another MCP client. The upstream game bridge still validates IDs, resources and phase legality.
 
-Snapshots are complete compact views, not state diffs. The middleware serializes requests within one server, checks the current snapshot before acting and refuses a stale `state_id`. It reads current state after each action. This trades a little local IPC work for fewer model-visible round trips. It does not guarantee a final score before playing.
+`get_state` always returns the complete compact view. Successful `act` replies can omit unchanged Joker and hand-level sections: `state.delta = {base_state_id: "...", unchanged: ["jokers", "hand_levels"]}` explicitly refers to the previous delivered state. Retain those facts; omission does not mean empty slots or level zero. Changed descriptions, ordering, IDs and hand levels are sent in full. Unknown bases and failed actions return full state. Read `get_state` to resynchronize. The fingerprint is computed from the full internal snapshot, including omitted facts; action validation and readback use that full snapshot. This reduces repeated text without hiding changed scoring facts.
+
+The middleware serializes requests within one server, checks current state before acting and refuses stale `state_id`. Manual input or another MCP client can still intervene. It does not guarantee a final score before playing.
 
 Version 0.3.1 waits for the actual `cash_out` legal action during round evaluation, rather than treating the phase name alone as ready. A bounded wait that expires returns state unavailable; it never repeats the accepted action. Hand levels, base chips/mult and play counts are included in the fingerprint, so a level-only change also invalidates an old scoring snapshot.
 
@@ -65,7 +75,11 @@ Version 0.3.2 bounds ordinary native action acknowledgements to 8 seconds, scori
 
 Version 0.3.3 waits for `cash_out` and at least 600 ms of stable reward information, without waiting for the finished blind to disappear: a victory dialog can retain that blind indefinitely. Further animations or external input can still invalidate a snapshot. Reorder actions require `args.order`; malformed orders are rejected before sending. Native JSON-RPC Invalid params errors are reported as validation failures, rather than uncertain gameplay.
 
-The native bridge has no victory-dialog visibility or Endless-button action. Legal `cash_out` can be behind the dialog, and `Endless Mode: true` in the run resource merely means Ante > 8. Choose Endless through the game UI, then read fresh state. `continue_game` loads a saved run from the main menu; the middleware refuses it during a run. The game Mod and executable remain unchanged; this update only requires restarting Codex.
+Version 0.4.0's optional game extension exposes `ui` in snapshots and through `inspect(section: "ui")`. Reward readiness uses the actual visible cash-out button, with a bounded 15-second round-evaluation wait. A victory overlay is readable without waiting for cash-out. `continue_endless` (no arguments) calls the game's existing Endless callback only on the actual victory dialog and observes its closure. Other overlays block gameplay. `continue_game` still loads a saved run from the main menu; the Ante-derived `Endless Mode` field is not evidence that Endless was chosen.
+
+When a pack is open, `sell_card` with an owned Joker's `card_id` uses the extension and the game's own sale checks. This permits making room in a full Buffoon pack. Selling and selecting the replacement are separate actions: inspect the offered card first, sell, then use fresh state to select it. Eternal and face-down Jokers cannot be sold through this extension. The original executable remains unchanged.
+
+Without the matching extension, ordinary upstream actions remain available; `ui.available: false` identifies the limitation. Endless and pack sales are refused before sending. Legacy reward readiness falls back to legal cash-out plus 1.5 seconds of stable reward text and cannot establish overlay visibility. The extension connects only when exactly one fresh local registry record and one upstream game are present; with multiple games, it refuses to guess which pipe belongs to an index.
 
 Multiple games require an explicit, current **0-based** `instance_index`; `inspect(section: "instances")` lists them. Upstream resources and handbook prompts remain available. Wiki search uses `inspect(section: "wiki", query: "...")`; an article uses `title`.
 
@@ -75,6 +89,8 @@ Multiple games require an explicit, current **0-based** `instance_index`; `inspe
 npm test
 node scripts\check.mjs --live
 node scripts\benchmark.mjs --live
+# Optional developer check: install lupa for your Python, then:
+python scripts\extension.test.py
 ```
 
 The live check and benchmark only read game state. Benchmark reports JSON character counts, not billed token savings. The full snapshot may contain more information than a bare upstream turn because it includes current shop/pack/blind choices. See [VALIDATION.md](VALIDATION.md) for tested scope and limitations.
@@ -83,6 +99,8 @@ The live check and benchmark only read game state. Benchmark reports JSON charac
 
 - `scripts/copilot.mjs`: compact views, instance selection, action sequencing and readback.
 - `scripts/upstream.mjs`: JSON-RPC transport to the original executable.
+- `scripts/bridge.mjs`, `bridge/copilot-extension.lua`: optional local game UI protocol and guarded callbacks.
+- `scripts/install-extension.ps1`: checksum-checked, backed-up extension installation.
 - `scripts/server.mjs`: stdio MCP entrypoint, with three tools and upstream resource compatibility.
 - `upstream-lock.json`: fixed release URLs, source commit and archive checksums.
 - `licenses/balatro-agent-MIT.txt`: full upstream MIT license, Copyright (c) 2026 4rcadia.

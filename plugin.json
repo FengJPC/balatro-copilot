@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "balatro-agent",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Compact Balatro Copilot middleware over the upstream Balatro Agent bridge.",
   "author": {
     "name": "FengJ"

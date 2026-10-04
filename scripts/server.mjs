@@ -6,6 +6,7 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { Upstream } from './upstream.mjs';
 import { Copilot, TOOLS, VERSION } from './copilot.mjs';
+import { GameBridge } from './bridge.mjs';
 
 if (process.platform !== 'win32' || process.arch !== 'x64') {
   process.stderr.write('This package contains the Windows x64 Balatro Agent binary.\n');
@@ -26,7 +27,7 @@ if (process.argv.length > 2) {
   child.on('exit', code => { process.exitCode = code ?? 1; });
 } else {
   const upstream = new Upstream(binary);
-  const copilot = new Copilot(upstream);
+  const copilot = new Copilot(upstream, { bridge: new GameBridge() });
   const ready = copilot.initialize();
   ready.catch(error => process.stderr.write(`Upstream initialization: ${error.message}\n`));
   const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
@@ -41,7 +42,7 @@ if (process.argv.length > 2) {
         case 'initialize':
           result = { protocolVersion: init.protocolVersion, capabilities: { tools: {}, resources: {}, prompts: {} },
             serverInfo: { name: 'balatro-copilot', version: VERSION },
-            instructions: 'Use get_state, then act with its state_id. inspect provides details on demand.' };
+            instructions: 'Use get_state, then act with its state_id. A returned state.delta explicitly references unchanged sections of its base_state_id; retain them. get_state restores full context. inspect provides details on demand.' };
           break;
         case 'ping': result = {}; break;
         case 'tools/list': result = { tools: TOOLS }; break;

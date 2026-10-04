@@ -133,7 +133,9 @@ test('Round evaluation waits until cash_out is actually available', async () => 
   const result = await copilot.invoke('act', { action: 'play_hand', state_id: state.state_id, args: { card_ids: [1] } });
   assert.equal(result.ok, true);
   assert.match(result.state.view, /Actions: cash_out/);
-  assert.match(result.state.hand_levels, /Lv.3 60×4/);
+  assert.equal(result.state.hand_levels, undefined);
+  assert.ok(result.state.delta.unchanged.includes('hand_levels'));
+  assert.match((await copilot.invoke('get_state')).hand_levels, /Lv.3 60×4/);
 });
 test('A hand-level-only change invalidates the old scoring snapshot', async () => {
   const { copilot, mutations, setHandLevel } = setup();
@@ -177,7 +179,7 @@ test('A victory screen retaining the finished blind stays readable without gamep
   assert.equal(again.state_id, state.state_id);
   const rejected = await copilot.invoke('act', { action: 'continue_game', state_id: state.state_id });
   assert.equal(rejected.action_may_have_executed, false);
-  assert.match(rejected.message, /Endless/);
+  assert.match(rejected.message, /continue_endless/);
   assert.equal(mutations.length, 0);
 });
 
